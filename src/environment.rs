@@ -1,13 +1,12 @@
 use crate::utils::run_cmd;
 use std::env;
 use std::error::Error;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{self, Read, Write};
-use std::path::PathBuf;
 
-struct UserInfo {
-    user: String,
-    password: String,
+pub struct UserInfo {
+    pub user: String,
+    pub password: String,
 }
 
 impl UserInfo {
@@ -15,11 +14,13 @@ impl UserInfo {
         UserInfo { user, password }
     }
 
-    fn load() -> Result<Self, Box<dyn Error>> {
-        let config_path = env::current_dir()?.join("user.config");
+    pub fn load() -> Result<Self, Box<dyn Error>> {
+        let config_dir = env::current_dir()?.join("config");
+        std::fs::create_dir_all(&config_dir)?;
+        let user_config_path = config_dir.join("user.config");
 
-        if config_path.exists() {
-            let mut file = File::open(&config_path)?;
+        if user_config_path.exists() {
+            let mut file = File::open(&user_config_path)?;
             let mut contents = String::new();
             file.read_to_string(&mut contents)?;
 
@@ -27,9 +28,9 @@ impl UserInfo {
             if lines.len() >= 2 {
                 let user = lines[0].to_string();
                 let password = lines[1].to_string();
-                return Ok(UserInfo::new(user, password));
+                Ok(UserInfo::new(user, password))
             } else {
-                return Err("Config file format err".into());
+                Err("Config file format err".into())
             }
         } else {
             println!("No user configuration found, Please enter credentials:");
@@ -51,23 +52,14 @@ impl UserInfo {
     }
 
     fn save(&self) -> Result<(), Box<dyn Error>> {
-        let config_file = env::current_dir()?.join("user.config");
+        let config_dir = env::current_dir()?.join("onfig");
+        std::fs::create_dir_all(&config_dir)?;
+        let config_file = config_dir.join("user.config");
         let mut file = File::create(&config_file)?;
         writeln!(file, "{}", self.user)?;
         writeln!(file, "{}", self.password)?;
         Ok(())
     }
-}
-
-pub fn get_os() -> Result<String, Box<dyn Error>> {
-    let os: String = env::consts::OS.to_string();
-    Ok(os)
-}
-
-// Get Current Directory
-pub fn get_dir() -> Result<PathBuf, Box<dyn Error>> {
-    let dir = env::current_dir()?;
-    Ok(dir)
 }
 
 // Add Path to Environment Variable
@@ -102,7 +94,7 @@ pub fn ensure_tools_available() -> Result<(), Box<dyn Error>> {
         std::fs::create_dir_all(&bin_dir)?;
     }
 
-    add_path(&bin_dir.to_string_lossy().to_string())?;
+    add_path(bin_dir.to_string_lossy().as_ref())?;
 
     let kubectl_path = bin_dir.join(if cfg!(windows) {
         "kubectl.exe"
@@ -125,9 +117,14 @@ pub fn ensure_tools_available() -> Result<(), Box<dyn Error>> {
             println!("  - helm is missing. Please place helm in the bin directory.");
         }
 
-        println!("You can download these tools from their official websites:");
-        println!("  kubectl: https://kubernetes.io/docs/tasks/tools/");
-        println!("  helm: https://helm.sh/docs/intro/install/");
+        println!(
+            "You can download these tools from their official websites:\n
+            please put the binary files donwloaded in the bin directory."
+        );
+        println!(
+            "  kubectl: https://kubernetes.p2hp.com/docs/tasks/tools/_print/index.html#pg-37b6179f23c8ad977cb9daa6d2da748a"
+        );
+        println!("  helm: https://github.com/helm/helm/releases");
     } else {
         println!("All required tools found in bin directory.");
     }
@@ -150,7 +147,23 @@ pub fn ensure_tools_available() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+fn init_helm() -> Result<(), Box<dyn Error>> {
+    // Check if med-helm repo already exists
+    let helm_list = run_cmd("helm", &["repo", "list"])?;
 
+    if !helm_list.contains("med-helm") {
+        let _helm_init = run_cmd(
+            "helm",
+            &["repo", "add", "med-helm", "http://166.111.153.65:7001"],
+        )?;
+        println!("Added med-helm repository");
+    } else {
+        println!("med-helm repository already exists");
+    }
+
+    let _helm_update = run_cmd("helm", &["repo", "update"])?;
+    Ok(())
+}
 pub fn check_env() {
     println!("Checking environment...");
     match UserInfo::load() {
@@ -167,17 +180,9 @@ pub fn check_env() {
         Ok(_) => println!("Tool directory setup complete"),
         Err(e) => println!("Error setting up tool directory: {}", e),
     }
-
-    println!("Environment check completed!");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn os_right() {
-        let os: String = String::from("linux");
-        assert_eq!(os, get_os().unwrap())
+    match init_helm() {
+        Ok(_) => println!("Helm initialized successfully"),
+        Err(e) => println!("Error initializing helm: {}", e),
     }
+    println!("Environment check completed!");
 }

@@ -1,11 +1,11 @@
 use std::io::{self, Error, Write};
 pub fn get_user_action() -> Result<u8, Error> {
-    println!("\n What would you like to do?");
+    println!("\nWhat would you like to do?");
     println!("0. Exit");
     println!("1. Initialize / Check Environment and Tools");
-    println!("2. Install Pod");
-    println!("3. List Pod and Website Address");
-    println!("4. Login Pod in Terminal");
+    println!("2. List Pod and Website Address");
+    println!("3. Install Pod");
+    println!("4. Login Pod in the Terminal");
     println!("5. Uninstall Pod");
     print!("Enter action: ");
 

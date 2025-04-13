@@ -83,11 +83,6 @@ impl HostsFile {
         Ok(entries)
     }
 
-    /// Get all entries from the hosts file
-    pub fn get_entries(&self) -> &[HostEntry] {
-        &self.entries
-    }
-
     /// Add a new entry to the hosts file
     pub fn add_entry(
         &mut self,
