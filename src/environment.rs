@@ -173,8 +173,8 @@ fn init_helm() -> Result<(), Box<dyn Error>> {
     } else {
         println!("med-helm repository already exists");
     }
-
-    let _helm_update = utils::run_cmd("helm", &["repo", "update"])?;
+    let helm_update = utils::run_cmd("helm", &["repo", "update"])?;
+    println!("{}", helm_update);
     Ok(())
 }
 pub fn check_env() {
@@ -188,7 +188,6 @@ pub fn check_env() {
             return;
         }
     }
-
     match ensure_tools_available() {
         Ok(_) => println!("Tool directory setup complete"),
         Err(e) => println!("Error setting up tool directory: {}", e),
