@@ -1,4 +1,4 @@
-use crate::utils::run_cmd;
+use crate::utils;
 use std::env;
 use std::error::Error;
 use std::fs::File;
@@ -52,7 +52,7 @@ impl UserInfo {
     }
 
     fn save(&self) -> Result<(), Box<dyn Error>> {
-        let config_dir = env::current_dir()?.join("onfig");
+        let config_dir = env::current_dir()?.join("config");
         std::fs::create_dir_all(&config_dir)?;
         let config_file = config_dir.join("user.config");
         let mut file = File::create(&config_file)?;
@@ -73,7 +73,7 @@ pub fn add_path(path: &str) -> Result<(), Box<dyn Error>> {
         path_vec.insert(0, path_str);
         let new_path = env::join_paths(path_vec)?;
         if cfg!(target_os = "windows") {
-            run_cmd(
+            utils::run_cmd(
                 "setx",
                 &["path", new_path.to_string_lossy().to_string().as_str()],
             )?;
@@ -85,7 +85,6 @@ pub fn add_path(path: &str) -> Result<(), Box<dyn Error>> {
     };
     Ok(())
 }
-
 pub fn ensure_tools_available() -> Result<(), Box<dyn Error>> {
     let bin_dir = std::env::current_dir()?.join("bin");
 
@@ -107,52 +106,66 @@ pub fn ensure_tools_available() -> Result<(), Box<dyn Error>> {
     let helm_exists = helm_path.exists();
 
     if !kubectl_exists || !helm_exists {
-        println!("Warning: Some required tools are missing in bin directory:");
+        println!("Some required tools are missing. Will attempt to download them:");
 
         if !kubectl_exists {
-            println!("  - kubectl is missing. Please place kubectl in the bin directory.");
+            match utils::download_kubectl(&bin_dir) {
+                Ok(_) => println!("Successfully downloaded kubectl"),
+                Err(e) => println!(
+                    "Failed to download kubectl: {}. Please download it manually.",
+                    e
+                ),
+            }
         }
 
         if !helm_exists {
-            println!("  - helm is missing. Please place helm in the bin directory.");
+            match utils::download_helm(&bin_dir) {
+                Ok(_) => println!("Successfully downloaded helm"),
+                Err(e) => println!(
+                    "Failed to download helm: {}. Please download it manually.",
+                    e
+                ),
+            }
         }
-
-        println!(
-            "You can download these tools from their official websites:\n
-            please put the binary files donwloaded in the bin directory."
-        );
-        println!(
-            "  kubectl: https://kubernetes.p2hp.com/docs/tasks/tools/_print/index.html#pg-37b6179f23c8ad977cb9daa6d2da748a"
-        );
-        println!("  helm: https://github.com/helm/helm/releases");
     } else {
         println!("All required tools found in bin directory.");
     }
 
+    // Re-check after potential downloads
+    let kubectl_exists = kubectl_path.exists();
+    let helm_exists = helm_path.exists();
+
     if kubectl_exists {
         let bin_kubectl = kubectl_path.to_string_lossy().to_string();
-        match run_cmd(&bin_kubectl, &["version"]) {
+        match utils::run_cmd(&bin_kubectl, &["version", "--client"]) {
             Ok(_) => println!("kubectl is working correctly"),
             Err(e) => println!("Warning: kubectl may not be working: {}", e),
         }
+    } else {
+        println!("kubectl is still missing. Please download it manually from:");
+        println!("kubectl: kubernetes.io/docs/tasks/tools/");
     }
 
     if helm_exists {
         let bin_helm = helm_path.to_string_lossy().to_string();
-        match run_cmd(&bin_helm, &["version"]) {
+        match utils::run_cmd(&bin_helm, &["version"]) {
             Ok(_) => println!("helm is working correctly"),
             Err(e) => println!("Warning: helm may not be working: {}", e),
         }
+    } else {
+        println!("helm is still missing. Please download it manually from:");
+        println!("helm: https://github.com/helm/helm/releases");
     }
 
     Ok(())
 }
+
 fn init_helm() -> Result<(), Box<dyn Error>> {
     // Check if med-helm repo already exists
-    let helm_list = run_cmd("helm", &["repo", "list"])?;
+    let helm_list = utils::run_cmd("helm", &["repo", "list"])?;
 
     if !helm_list.contains("med-helm") {
-        let _helm_init = run_cmd(
+        let _helm_init = utils::run_cmd(
             "helm",
             &["repo", "add", "med-helm", "http://166.111.153.65:7001"],
         )?;
@@ -161,7 +174,7 @@ fn init_helm() -> Result<(), Box<dyn Error>> {
         println!("med-helm repository already exists");
     }
 
-    let _helm_update = run_cmd("helm", &["repo", "update"])?;
+    let _helm_update = utils::run_cmd("helm", &["repo", "update"])?;
     Ok(())
 }
 pub fn check_env() {

@@ -173,7 +173,7 @@ impl PodConfig {
                     Err(e) => {
                         eprintln!(
                             "Error adding hostname to hosts file: {}.\n
-                            You may need using admin/sudo to run or add {} manually.",
+                            You may need to add {} manually.",
                             e, hostname
                         );
                     }
@@ -182,7 +182,7 @@ impl PodConfig {
             Err(e) => {
                 eprintln!(
                     "Error creating hosts file: {}. \n
-                    You may need using admin/sudo to run or add {} manually",
+                    You may need to add {} manually",
                     e, self.container_name
                 );
             }
