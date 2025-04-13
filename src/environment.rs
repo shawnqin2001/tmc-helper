@@ -167,7 +167,6 @@ pub fn check_env() {
         Ok(_) => println!("Tool directory setup complete"),
         Err(e) => println!("Error setting up tool directory: {}", e),
     }
-
     println!("Environment check completed!");
 }
 
