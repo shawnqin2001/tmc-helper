@@ -83,11 +83,6 @@ impl HostsFile {
         Ok(entries)
     }
 
-    /// Get all entries from the hosts file
-    pub fn get_entries(&self) -> &[HostEntry] {
-        &self.entries
-    }
-
     /// Add a new entry to the hosts file
     pub fn add_entry(
         &mut self,
@@ -130,26 +125,115 @@ impl HostsFile {
             .map(|m| !m.permissions().readonly())
             .unwrap_or(false);
 
-        if !can_write {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "Insufficient permissions to write to hosts file. Try running with admin/sudo privileges.",
-            ));
+        if can_write {
+            // If we already have write permissions, use direct file approach
+            self.save_direct()
+        } else {
+            // Otherwise, try elevation based on platform
+            if cfg!(windows) {
+                self.save_with_windows_elevation()
+            } else if cfg!(target_os = "macos") || cfg!(unix) {
+                self.save_with_unix_elevation()
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "Insufficient permissions to write to hosts file. Try running with admin/sudo privileges.",
+                ))
+            }
         }
+    }
 
+    fn save_direct(&self) -> io::Result<()> {
         let mut file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .open(&self.path)?;
 
-        // Write the standard localhost entries that most hosts files have
-        writeln!(file, "127.0.0.1       localhost")?;
-        if cfg!(windows) {
-            writeln!(file, "::1             localhost")?;
+        self.write_hosts_content(&mut file)
+    }
+
+    fn save_with_windows_elevation(&self) -> io::Result<()> {
+        // Create a temporary file with our hosts content
+        let temp_path = std::env::temp_dir().join("thumed_hosts_temp.txt");
+        let mut temp_file = File::create(&temp_path)?;
+
+        // Write content to temp file
+        self.write_hosts_content(&mut temp_file)?;
+
+        // Use PowerShell to copy the file with elevation
+        let status = std::process::Command::new("powershell")
+            .args(&[
+                "-Command",
+                &format!(
+                    "Start-Process powershell -Verb RunAs -ArgumentList '-Command Copy-Item -Path \"{}\" -Destination \"{}\" -Force'",
+                    temp_path.display(),
+                    self.path
+                ),
+            ])
+            .status()?;
+
+        // Clean up temp file
+        std::fs::remove_file(temp_path)?;
+
+        if status.success() {
+            Ok(())
         } else {
-            writeln!(file, "::1             localhost ip6-localhost ip6-loopback")?;
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Failed to write hosts file even with elevation attempt",
+            ))
         }
-        writeln!(file)?;
+    }
+
+    fn save_with_unix_elevation(&self) -> io::Result<()> {
+        // Create a temporary file with our hosts content
+        let temp_path = std::env::temp_dir().join("thumed_hosts_temp.txt");
+        let mut temp_file = File::create(&temp_path)?;
+
+        // Write content to temp file
+        self.write_hosts_content(&mut temp_file)?;
+
+        // Use sudo/pkexec to copy the file with elevation
+        let sudo_cmd = if std::process::Command::new("which")
+            .arg("pkexec")
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+        {
+            "pkexec"
+        } else {
+            "sudo"
+        };
+
+        let status = std::process::Command::new(sudo_cmd)
+            .args(&["cp", temp_path.to_str().unwrap(), &self.path])
+            .status()?;
+
+        // Clean up temp file
+        std::fs::remove_file(temp_path)?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Failed to write hosts file even with elevation attempt",
+            ))
+        }
+    }
+
+    fn write_hosts_content(&self, writer: &mut impl Write) -> io::Result<()> {
+        // Write the standard localhost entries
+        writeln!(writer, "127.0.0.1       localhost")?;
+        if cfg!(windows) {
+            writeln!(writer, "::1             localhost")?;
+        } else {
+            writeln!(
+                writer,
+                "::1             localhost ip6-localhost ip6-loopback"
+            )?;
+        }
+        writeln!(writer)?;
 
         // Write all custom entries
         for entry in &self.entries {
@@ -157,7 +241,7 @@ impl HostsFile {
             if let Some(comment) = &entry.comment {
                 line = format!("{}  # {}", line, comment);
             }
-            writeln!(file, "{}", line)?;
+            writeln!(writer, "{}", line)?;
         }
 
         Ok(())
