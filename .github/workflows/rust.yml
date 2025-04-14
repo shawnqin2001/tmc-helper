@@ -66,13 +66,13 @@ jobs:
           mkdir -p ${{ matrix.asset_name }}
           cp ${{ matrix.binary_path }} ${{ matrix.asset_name }}/
 
-      - name: Compress artifact
-        run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            7z a ${{ matrix.asset_name }}.zip ${{ matrix.asset_name }}
-          else
-            tar -czvf ${{ matrix.asset_name }}.tar.gz ${{ matrix.asset_name }}
-          fi
+      - name: Compress artifact (Windows)
+        if: runner.os == 'Windows'
+        run: 7z a ${{ matrix.asset_name }}.zip ${{ matrix.asset_name }}
+
+      - name: Compress artifact (Unix)
+        if: runner.os != 'Windows'
+        run: tar -czvf ${{ matrix.asset_name }}.tar.gz ${{ matrix.asset_name }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
