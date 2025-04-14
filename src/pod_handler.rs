@@ -87,39 +87,39 @@ impl PodConfig {
         let yaml_content = format!(
             r#"replicaCount: 1
 
-        image:
-          repository: base.med.thu/public/rstudio
-          pullPolicy: Always
-          tag: "v1"
+image:
+  repository: base.med.thu/public/rstudio
+  pullPolicy: Always
+  tag: "v1"
 
-        containerName: "{container_name}"
+containerName: "{container_name}"
 
-        service:
-          type: ClusterIP
-          port: 8787
+service:
+  type: ClusterIP
+  port: 8787
 
-        resources:
-          limits:
-            cpu: "{cpu}"
-            memory: "{memory}"
+resources:
+  limits:
+    cpu: "{cpu}"
+    memory: "{memory}"
 
-        imageCredentials:
-          registry: base.med.thu
-          username: {username}
-          password: {password}
+imageCredentials:
+  registry: base.med.thu
+  username: {username}
+  password: {password}
 
-        loadDataPath:
-          public:
-            - "input"
-            - "lessonPublic"
-          personal:
-            - "{username}"
+loadDataPath:
+  public:
+    - "input"
+    - "lessonPublic"
+  personal:
+    - "{username}"
 
-        type: centos
+type: centos
 
-        nfs: "Aries"
+nfs: "Aries"
 
-        transfer: false
+transfer: false
         "#,
             container_name = self.container_name,
             cpu = self.get_cpu(),
@@ -182,7 +182,7 @@ impl PodConfig {
             Err(e) => {
                 eprintln!(
                     "Error creating hosts file: {}. \n
-                    You may need to add {} manually",
+                    You may need to manually add host:\n166.111.153.65 {}",
                     e, self.container_name
                 );
             }
@@ -200,7 +200,7 @@ impl PodList {
             pod_list: Vec::new(),
         }
     }
-    pub fn get_pod_list(&self) -> Vec<String> {
+    pub fn get_pod_list(&mut self) {
         let stdout = utils::run_cmd("kubectl", &["get", "pods"]).unwrap();
         let lines: Vec<&str> = stdout.lines().collect();
         let mut pod_list = Vec::new();
@@ -210,7 +210,7 @@ impl PodList {
                 pod_list.push(parts[0].to_string());
             }
         }
-        pod_list
+        self.pod_list = pod_list;
     }
 
     pub fn display(&self) {

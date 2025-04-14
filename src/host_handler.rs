@@ -1,6 +1,6 @@
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
-use std::path::Path;
+// use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostEntry {
@@ -120,37 +120,36 @@ impl HostsFile {
     /// Save the current entries back to the hosts file
     pub fn save(&self) -> io::Result<()> {
         // Check if we have permission to write to the hosts file
-        let can_write = Path::new(&self.path)
-            .metadata()
-            .map(|m| !m.permissions().readonly())
-            .unwrap_or(false);
+        // let can_write = Path::new(&self.path)
+        //     .metadata()
+        //     .map(|m| !m.permissions().readonly())
+        //     .unwrap_or(false);
 
-        if can_write {
-            // If we already have write permissions, use direct file approach
-            self.save_direct()
+        // if can_write {
+        //     println!("Save host file");
+        //     self.save_direct()
+        // } else {
+        println!("Insufficient permissions to write to hosts file. Attempting to elevate...");
+        if cfg!(windows) {
+            self.save_with_windows_elevation()
+        } else if cfg!(target_os = "macos") || cfg!(unix) {
+            self.save_with_unix_elevation()
         } else {
-            // Otherwise, try elevation based on platform
-            if cfg!(windows) {
-                self.save_with_windows_elevation()
-            } else if cfg!(target_os = "macos") || cfg!(unix) {
-                self.save_with_unix_elevation()
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    "Insufficient permissions to write to hosts file. Try running with admin/sudo privileges.",
-                ))
-            }
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Insufficient permissions to write to hosts file. Try running with admin/sudo privileges.",
+            ))
         }
     }
 
-    fn save_direct(&self) -> io::Result<()> {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(&self.path)?;
+    // fn save_direct(&self) -> io::Result<()> {
+    //     let mut file = OpenOptions::new()
+    //         .write(true)
+    //         .truncate(true)
+    //         .open(&self.path)?;
 
-        self.write_hosts_content(&mut file)
-    }
+    //     self.write_hosts_content(&mut file)
+    // }
 
     fn save_with_windows_elevation(&self) -> io::Result<()> {
         // Create a temporary file with our hosts content
@@ -172,7 +171,6 @@ impl HostsFile {
             ])
             .status()?;
 
-        // Clean up temp file
         std::fs::remove_file(temp_path)?;
 
         if status.success() {

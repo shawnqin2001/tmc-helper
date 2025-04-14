@@ -5,7 +5,7 @@ mod pod_handler;
 mod utils;
 
 fn main() {
-    let pod_list = pod_handler::PodList::new();
+    let mut pod_list = pod_handler::PodList::new();
     println!("Welcome to THU-Med Login Helper");
     println!("Current: Lecture version");
     loop {
