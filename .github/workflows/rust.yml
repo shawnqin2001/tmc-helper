@@ -94,12 +94,15 @@ jobs:
         with:
           path: artifacts
 
+      - name: Display directory structure for debugging
+        run: ls -R artifacts
+
       - name: Create release
         uses: softprops/action-gh-release@v1
         with:
           draft: false
           prerelease: false
-          files: artifacts/**/*.{zip,tar.gz}
+          files: artifacts/**/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
