@@ -56,32 +56,27 @@ jobs:
             target: x86_64-unknown-linux-gnu
             name: linux-x86_64
             artifact_ext: tar.gz
-            archive_cmd: |
-              tar czf ${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }} ${{ env.BINARY_NAME }} README.md LICENSE*
 
           # macOS x86_64 (Intel)
           - os: macos-13 # Use specific older macOS version for Intel
             target: x86_64-apple-darwin
             name: macos-x86_64
             artifact_ext: tar.gz
-            archive_cmd: |
-              tar czf ${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }} ${{ env.BINARY_NAME }} README.md LICENSE*
+
 
           # macOS aarch64 (Apple Silicon/ARM)
           - os: macos-14 # Use specific newer macOS version for ARM
             target: aarch64-apple-darwin
             name: macos-aarch64
             artifact_ext: tar.gz
-            archive_cmd: |
-              tar czf ${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }} ${{ env.BINARY_NAME }} README.md LICENSE*
+
 
           # Windows x86_64 (MSVC)
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             name: windows-x86_64
             artifact_ext: zip
-            archive_cmd: |
-              Compress-Archive -Path ${{ env.BINARY_NAME }}.exe, README.md, LICENSE* -DestinationPath ${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }} -Force
+           
 
           # Optional: Windows x86_64 (GNU) - Requires mingw setup on Ubuntu
           # - os: ubuntu-latest
