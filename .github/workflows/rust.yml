@@ -1,95 +1,100 @@
-name: Build, Test, and Release
+# .github/workflows/rust.yml
+name: Build, Test, and Release Rust Project
 
 on:
   push:
     branches: [ "main" ]
-    # Run the release job only when tags are pushed (e.g., v1.0.0, v2.1.3)
+    # Run the release jobs only when tags starting with 'v' are pushed
     tags: [ 'v*' ]
   pull_request:
     branches: [ "main" ]
 
 env:
-  # Default binary name - assumes your crate name is the binary name.
-  # If your binary has a different name (e.g., specified in [[bin]] section of Cargo.toml),
-  # set it explicitly here or modify the script steps to determine it.
-  BINARY_NAME: thumed_login 
+  # !!! IMPORTANT: CHANGE THIS TO YOUR ACTUAL BINARY/CRATE NAME !!!
+  # This assumes your crate name is the same as your binary executable name.
+  # If your binary has a specific name set in Cargo.toml's [[bin]] section, use that name.
+  BINARY_NAME: your_crate_name
 
+# Required for softprops/action-gh-release to create a release and upload assets
 permissions:
-  contents: write # Needed for softprops/action-gh-release to create releases
+  contents: write
 
 jobs:
-  # Job for basic checks on pushes/PRs to main branch
+  # =============================================
+  # Job 1: Run tests and checks on main branch pushes/PRs
+  # =============================================
   test:
-    name: Test Suite
-    # Don't run this job if a tag was pushed (to avoid redundancy with release job)
+    name: Test Suite (Ubuntu)
+    # Only run on pushes/PRs to main, NOT on tag pushes
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/pull/')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust toolchain
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - name: Cache dependencies
+
+      - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+
       - name: Check formatting
         run: cargo fmt -- --check
-      - name: Build (Debug)
+
+      - name: Run Clippy lints
+        run: cargo clippy -- -D warnings # Fail build on warnings
+
+      - name: Build (debug mode)
         run: cargo build --verbose
+
       - name: Run tests
         run: cargo test --verbose
 
-  # Job for building release binaries for multiple targets
+  # =============================================
+  # Job 2: Build release binaries for multiple targets on Tag Push
+  # =============================================
   build_release:
     name: Build Release Binaries
-    # Only run this job if a tag was pushed
-    if: startsWith(github.ref, 'refs/tags/')
+    # Only run this job if a tag starting with 'v' was pushed
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [] # Does not depend on the test job
     strategy:
       matrix:
         include:
-          # Linux x86_64 (GNU)
-          - os: ubuntu-latest
+          # Linux x86_64 (GNU Libc)
+          - os_runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             name: linux-x86_64
             artifact_ext: tar.gz
 
           # macOS x86_64 (Intel)
-          - os: macos-13 # Use specific older macOS version for Intel
+          - os_runner: macos-13 # Specific runner for Intel macOS
             target: x86_64-apple-darwin
-            name: macos-x86_64
+            name: macos-intel
             artifact_ext: tar.gz
 
-
-          # macOS aarch64 (Apple Silicon/ARM)
-          - os: macos-14 # Use specific newer macOS version for ARM
+          # macOS aarch64 (Apple Silicon)
+          - os_runner: macos-14 # Specific runner for ARM macOS
             target: aarch64-apple-darwin
-            name: macos-aarch64
+            name: macos-arm
             artifact_ext: tar.gz
-
 
           # Windows x86_64 (MSVC)
-          - os: windows-latest
+          - os_runner: windows-latest
             target: x86_64-pc-windows-msvc
             name: windows-x86_64
             artifact_ext: zip
-           
 
-          # Optional: Windows x86_64 (GNU) - Requires mingw setup on Ubuntu
-          # - os: ubuntu-latest
-          #   target: x86_64-pc-windows-gnu
-          #   name: windows-x86_64-gnu
-          #   artifact_ext: zip
-          #   setup_deps: sudo apt-get update && sudo apt-get install -y mingw-w64 gcc-mingw-w64 # Install linker
-          #   archive_cmd: |
-          #     zip ${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }} ${{ env.BINARY_NAME }}.exe README.md LICENSE*
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os_runner }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (stable)
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -97,105 +102,135 @@ jobs:
           target: ${{ matrix.target }}
           override: true
 
-      - name: Cache dependencies
+      - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-           # Key cache differently based on OS and target
+          # Cache is specific to the target triple
           key: ${{ matrix.target }}
 
-      # Optional: Install dependencies for specific targets (like mingw for windows-gnu)
-      - name: Install dependencies (if needed)
-        if: matrix.setup_deps != ''
-        run: ${{ matrix.setup_deps }}
-
       - name: Build release binary
-        uses: actions-rs/cargo@v1 # Using cargo action can sometimes simplify things
-        with:
-          command: build
-          args: --release --target ${{ matrix.target }} --verbose
-          use-cross: ${{ contains(matrix.target, 'windows-gnu') }} # Use cross if building windows-gnu on linux
+        run: cargo build --release --target ${{ matrix.target }} --verbose
 
-      # Determine paths and names
+      # Prepare variables and rename the binary for consistent packaging
       - name: Set asset paths and names
         id: set_names
         shell: bash
         run: |
-          # Get the tag name (e.g., v1.2.3)
-          TAG=${GITHUB_REF#refs/tags/}
-
-          # Define binary path based on target
-          BIN_PATH="target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}"
-          ASSET_BASENAME="${{ env.BINARY_NAME }}-${TAG}-${{ matrix.name }}" # e.g., my_app-v1.0.0-linux-x86_64
-
-          # Add .exe suffix for Windows targets
-          if [[ "${{ matrix.os }}" == "windows-latest" || "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]; then
-            BIN_PATH="${BIN_PATH}.exe"
-            # Rename binary locally for consistent archiving command if needed
-            mv "$BIN_PATH" "${{ env.BINARY_NAME }}.exe"
-            echo "BINARY_FILE=${{ env.BINARY_NAME }}.exe" >> $GITHUB_ENV
-          else
-            # Rename binary locally for consistent archiving command if needed
-            mv "$BIN_PATH" "${{ env.BINARY_NAME }}"
-            echo "BINARY_FILE=${{ env.BINARY_NAME }}" >> $GITHUB_ENV
-          fi
-
-          echo "RELEASE_DIR=${{ env.BINARY_NAME }}-${{ matrix.name }}" >> $GITHUB_ENV # Directory name inside artifact
-          echo "ASSET_NAME=${ASSET_BASENAME}" >> $GITHUB_ENV # Base name for archive/asset
+          # Extract tag version (e.g., v1.2.3 -> 1.2.3) if needed, or use full tag
+          TAG=${GITHUB_REF#refs/tags/} # e.g., v1.2.3
           echo "TAG=${TAG}" >> $GITHUB_ENV
 
-      # Prepare the artifact (archive binary + readme/license)
+          # Determine binary path after build
+          BIN_PATH_PREFIX="target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}"
+          echo "BIN_PATH_PREFIX=${BIN_PATH_PREFIX}" >> $GITHUB_ENV
+
+          # Define the final simple binary filename (with .exe for windows)
+          SIMPLE_BIN_NAME="${{ env.BINARY_NAME }}"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            SIMPLE_BIN_NAME="${SIMPLE_BIN_NAME}.exe"
+            BIN_PATH="${BIN_PATH_PREFIX}.exe"
+          else
+            BIN_PATH="${BIN_PATH_PREFIX}"
+          fi
+          echo "BINARY_FILE=${SIMPLE_BIN_NAME}" >> $GITHUB_ENV # e.g., my_app OR my_app.exe
+          echo "BUILT_BINARY_PATH=${BIN_PATH}" >> $GITHUB_ENV # e.g., target/.../my_app.exe
+
+          # Define asset base name (e.g., my_app-v1.2.3-linux-x86_64)
+          ASSET_BASENAME="${{ env.BINARY_NAME }}-${TAG}-${{ matrix.name }}"
+          echo "ASSET_NAME=${ASSET_BASENAME}" >> $GITHUB_ENV
+
+          # Move the compiled binary to the workspace root with the simple name
+          echo "Moving ${BUILT_BINARY_PATH} to ${BINARY_FILE}"
+          mv "${BUILT_BINARY_PATH}" "${BINARY_FILE}"
+
+      # Package the binary, README, LICENSE into an archive
       - name: Package artifact for release
-        shell: bash # Use bash universally for consistency here, even on Windows runner
+        shell: bash # Use bash universally for scripting consistency
         run: |
-          # Create staging directory
+          echo "Packaging for ${{ runner.os }}..."
+          echo "Asset base name: ${{ env.ASSET_NAME }}"
+          echo "Binary file: ${{ env.BINARY_FILE }}"
+          echo "Artifact extension: ${{ matrix.artifact_ext }}"
+
+          # Create a staging directory to collect files for the archive
           mkdir staging
           cp "${{ env.BINARY_FILE }}" staging/
-          # Try copying common files - ignore errors if they don't exist
-          cp README.md staging/ || true
-          cp LICENSE* staging/ || true # Copies LICENSE, LICENSE-MIT etc.
 
-          # Run the OS-specific archive command
+          # Copy README and LICENSE if they exist (ignore errors if not found)
+          cp README.md staging/ || echo "README.md not found, skipping."
+          # Use find to copy multiple LICENSE files if they exist (e.g., LICENSE, LICENSE-MIT)
+          find . -maxdepth 1 -name 'LICENSE*' -exec cp {} staging/ \; || echo "LICENSE file(s) not found, skipping."
+
+          # Change into staging directory
           cd staging
-          ${{ matrix.archive_cmd }} # Run the command defined in the matrix
 
-          # Move archive to top level for upload
-          mv "${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }}" ..
+          # Create the archive file in the PARENT directory
+          ARCHIVE_FILE_NAME="../${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }}"
+          echo "Creating archive: ${ARCHIVE_FILE_NAME}"
+
+          if [[ "${{ runner.os }}" == "Linux" || "${{ runner.os }}" == "macOS" ]]; then
+            tar czf "${ARCHIVE_FILE_NAME}" *
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            # Use PowerShell from bash shell to create zip archive
+            powershell Compress-Archive -Path * -DestinationPath "${ARCHIVE_FILE_NAME}" -Force
+          else
+            echo "::error::Unsupported runner OS for archiving: ${{ runner.os }}"
+            exit 1
+          fi
+
+          # Change back to the parent (workspace root) directory
           cd ..
 
-      # Upload artifact for the release job
+          echo "Archive contents:"
+          if [[ "${{ runner.os }}" == "Linux" || "${{ runner.os }}" == "macOS" ]]; then
+            tar tzf "${ARCHIVE_FILE_NAME}"
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            powershell Get-ChildItem -Path "${ARCHIVE_FILE_NAME}" # Shows basic archive info on Windows
+          fi
+
+      # Upload the created archive as a workflow artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }} # Use the final archive name for the artifact name
-          path: ${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }} # Path to the archive file created
+          # Artifact name must match the archive filename
+          name: ${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }}
+          # Path to the archive file created in the previous step
+          path: ${{ env.ASSET_NAME }}.${{ matrix.artifact_ext }}
+          retention-days: 7 # Keep artifacts for 7 days
 
-  # Job to create the actual GitHub Release and upload all built artifacts
+  # =============================================
+  # Job 3: Create GitHub Release and Upload Assets on Tag Push
+  # =============================================
   release:
     name: Create GitHub Release
     # Only run if the build_release job succeeded and a tag was pushed
-    if: success() && startsWith(github.ref, 'refs/tags/')
-    needs: [build_release] # Run after all matrix builds are done
+    if: success() && startsWith(github.ref, 'refs/tags/v')
+    needs: [build_release] # Run only after all matrix builds are done
     runs-on: ubuntu-latest
     steps:
       - name: Download all release artifacts
         uses: actions/download-artifact@v4
         with:
-          # No specific name provided, downloads all artifacts from the workflow run
-          # They will be placed in directories named after the artifact name
-          path: release-artifacts # Download into a subdirectory
+          # No specific name provided means download all artifacts
+          # They will be placed in directories matching the artifact names by default
+          path: release-artifacts # Download into this directory
 
       - name: List downloaded artifacts (for debugging)
-        run: find release-artifacts -type f
+        run: |
+          echo "Downloaded artifacts structure:"
+          ls -R release-artifacts
 
       - name: Create Release and Upload Assets
-        uses: softprops/action-gh-release@v2 # Use v2 or latest stable
+        uses: softprops/action-gh-release@v2
         with:
-          # Use the artifacts downloaded in the previous step.
-          # The pattern should match the files inside the download directory.
-          # Artifacts are downloaded into subdirectories named after the artifact name,
-          # so we need to match files within those subdirs.
+          # Define files to upload. This pattern assumes artifacts were downloaded
+          # into subdirectories named after the artifact within 'release-artifacts'.
+          # Example: release-artifacts/my_app-v1.0.0-linux-x86_64.tar.gz/my_app-v1.0.0-linux-x86_64.tar.gz
+          # Update the pattern if download-artifact@v4 structure changes or if you use 'name' in download.
+          # If download-artifact@v4 flattens the structure: files: release-artifacts/*.*
           files: release-artifacts/*/*.*
-          # Automatically generates release notes from commits since last tag (optional)
+          # Optional: Automatically generate release notes from commits since last tag
           # generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Provided by Actions automatically
+          # GITHUB_TOKEN is automatically provided by GitHub Actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
