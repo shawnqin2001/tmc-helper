@@ -61,11 +61,24 @@ jobs:
         if: matrix.target != 'aarch64-apple-darwin'
         run: cargo build --release
 
+      - name: Create directory for artifact
+        run: |
+          mkdir -p ${{ matrix.asset_name }}
+          cp ${{ matrix.binary_path }} ${{ matrix.asset_name }}/
+
+      - name: Compress artifact
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a ${{ matrix.asset_name }}.zip ${{ matrix.asset_name }}
+          else
+            tar -czvf ${{ matrix.asset_name }}.tar.gz ${{ matrix.asset_name }}
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: ${{ matrix.binary_path }}
+          path: ${{ matrix.asset_name }}.*
           if-no-files-found: error
 
   release:
@@ -86,7 +99,7 @@ jobs:
         with:
           draft: false
           prerelease: false
-          files: artifacts/**/*
+          files: artifacts/**/*.{zip,tar.gz}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
