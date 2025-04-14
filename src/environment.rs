@@ -16,7 +16,9 @@ impl UserInfo {
 
     pub fn load() -> Result<Self, Box<dyn Error>> {
         let config_dir = env::current_dir()?.join("config");
-        std::fs::create_dir_all(&config_dir)?;
+        if !config_dir.exists() {
+            std::fs::create_dir_all(&config_dir)?;
+        }
         let user_config_path = config_dir.join("user.config");
 
         if user_config_path.exists() {
@@ -53,7 +55,9 @@ impl UserInfo {
 
     fn save(&self) -> Result<(), Box<dyn Error>> {
         let config_dir = env::current_dir()?.join("config");
-        std::fs::create_dir_all(&config_dir)?;
+        if !config_dir.exists() {
+            std::fs::create_dir_all(&config_dir)?;
+        }
         let config_file = config_dir.join("user.config");
         let mut file = File::create(&config_file)?;
         writeln!(file, "{}", self.user)?;
