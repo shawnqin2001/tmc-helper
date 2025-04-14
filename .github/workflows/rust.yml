@@ -21,16 +21,16 @@ jobs:
         include:
           - os: macos-latest
             target: x86_64-apple-darwin
-            binary_path: target/release/${{ env.PROJECT_NAME }}
-            asset_name: ${{ env.PROJECT_NAME }}-macos-x86_64
+            binary_path: target/release/thumed_login
+            asset_name: thumed_login-macos-x86_64
           - os: macos-latest
             target: aarch64-apple-darwin
-            binary_path: target/aarch64-apple-darwin/release/${{ env.PROJECT_NAME }}
-            asset_name: ${{ env.PROJECT_NAME }}-macos-arm64
+            binary_path: target/aarch64-apple-darwin/release/thumed_login
+            asset_name: thumed_login-macos-arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            binary_path: target/release/${{ env.PROJECT_NAME }}.exe
-            asset_name: ${{ env.PROJECT_NAME }}-windows-x86_64.exe
+            binary_path: target/release/thumed_login.exe
+            asset_name: thumed_login-windows-x86_64.exe
 
     steps:
       - uses: actions/checkout@v3
