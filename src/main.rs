@@ -3,8 +3,15 @@ mod host_handler;
 mod interaction;
 mod pod_handler;
 mod utils;
-
+use std::env;
 fn main() {
+    if let Ok(exe_path) = env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            if let Err(e) = env::set_current_dir(exe_dir) {
+                eprintln!("Failed to change directory: {}", e);
+            }
+        }
+    }
     let mut pod_list = pod_handler::PodList::new();
     println!("Welcome to THU-Med Login Helper");
     println!("Current: Lecture version");

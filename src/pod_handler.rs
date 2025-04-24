@@ -143,7 +143,7 @@ transfer: false
             return;
         }
         let output = Command::new("helm")
-            .args(&[
+            .args([
                 "install",
                 &self.container_name,
                 "med-helm/alpha",
@@ -220,7 +220,29 @@ impl PodList {
             println!("Pod ID: {}, Website: {}", pod, website);
         }
     }
-    pub fn login_pod(&self) {}
+    pub fn login_pod(&self) {
+        println!("Please input the pod name you want to login:");
+        let mut pod_name = String::new();
+        io::stdin()
+            .read_line(&mut pod_name)
+            .expect("Failed to read line");
+        let pod_name = pod_name.trim();
+        if self.pod_list.contains(&pod_name.to_string()) {
+            println!("Connecting to pod: {}...", pod_name);
+            
+            // Use Command::status to run interactively instead of output
+            let status = Command::new("kubectl")
+                .args(["exec", "-it", pod_name, "--", "sh", "/cmd.sh"])
+                .status()
+                .expect("Failed to execute command");
+                
+            if !status.success() {
+                eprintln!("Error: kubectl command failed with status: {}", status);
+            }
+        } else {
+            eprintln!("Pod {} not found in the list.", pod_name);
+        }
+    }
     pub fn uninstall_pod(&self) {
         println!("Please input the pod name you want to uninstall:");
         let mut pod_name = String::new();
@@ -228,7 +250,7 @@ impl PodList {
             .read_line(&mut pod_name)
             .expect("Failed to read line");
         let output = Command::new("helm")
-            .args(&["uninstall", &pod_name])
+            .args(["uninstall", &pod_name])
             .output()
             .expect("Failed to uninstall pod");
         if output.status.success() {
