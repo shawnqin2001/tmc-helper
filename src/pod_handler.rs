@@ -216,8 +216,8 @@ impl PodList {
     pub fn display(&self) {
         println!("Pods:");
         for pod in &self.pod_list {
-            let website = pod.split('-').collect::<Vec<&str>>()[0].to_string() + ".app.med.thu";
-            println!("Pod ID: {}, Website: {}", pod, website);
+            let website = "http://".to_string() + pod.split('-').collect::<Vec<&str>>()[0] + ".app.med.thu/";
+            println!("Pod ID: {}; Website: \"{}\"", pod, website);
         }
     }
     pub fn login_pod(&self) {
@@ -243,18 +243,25 @@ impl PodList {
             eprintln!("Pod {} not found in the list.", pod_name);
         }
     }
-    pub fn uninstall_pod(&self) {
+    pub fn uninstall_pod(&mut self) {
         println!("Please input the pod name you want to uninstall:");
         let mut pod_name = String::new();
         io::stdin()
             .read_line(&mut pod_name)
             .expect("Failed to read line");
+        pod_name = pod_name.trim().to_string();
+        if !self.pod_list.contains(&pod_name) {
+            eprintln!("Pod {} not found in the list.", pod_name);
+            return;
+        }
+        let podname_split = pod_name.split('-').next().unwrap_or(&pod_name);
         let output = Command::new("helm")
-            .args(["uninstall", &pod_name])
+            .args(["uninstall", podname_split])
             .output()
             .expect("Failed to uninstall pod");
         if output.status.success() {
             println!("Pod uninstalled successfully.");
+            self.get_pod_list();
         } else {
             eprintln!(
                 "Error uninstalling pod: {}",
