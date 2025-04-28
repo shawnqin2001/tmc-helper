@@ -230,13 +230,11 @@ impl PodList {
         let pod_name = pod_name.trim();
         if self.pod_list.contains(&pod_name.to_string()) {
             println!("Connecting to pod: {}...", pod_name);
-
             // Use Command::status to run interactively instead of output
             let status = Command::new("kubectl")
                 .args(["exec", "-it", pod_name, "--", "sh", "/cmd.sh"])
                 .status()
                 .expect("Failed to execute command");
-
             if !status.success() {
                 eprintln!("Error: kubectl command failed with status: {}", status);
             }
