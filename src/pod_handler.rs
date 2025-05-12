@@ -161,9 +161,9 @@ transfer: false
         }
         match host_handler::HostsFile::new() {
             Ok(mut host_file) => {
-                let hostname = format!("{}.app.med.thu", self.container_name);
+                let hostname = format!("{}.apps.med.thu", self.container_name);
                 match host_file.add_entry(
-                    "166.11.153.65",
+                    "166.111.153.65",
                     &[&hostname],
                     Some("Added by thumed_login"),
                 ) {
@@ -216,7 +216,8 @@ impl PodList {
     pub fn display(&self) {
         println!("Pods:");
         for pod in &self.pod_list {
-            let website = "http://".to_string() + pod.split('-').collect::<Vec<&str>>()[0] + ".app.med.thu/";
+            let website =
+                "http://".to_string() + pod.split('-').collect::<Vec<&str>>()[0] + ".apps.med.thu/";
             println!("Pod ID: {}; Website: \"{}\"", pod, website);
         }
     }
@@ -229,13 +230,11 @@ impl PodList {
         let pod_name = pod_name.trim();
         if self.pod_list.contains(&pod_name.to_string()) {
             println!("Connecting to pod: {}...", pod_name);
-            
             // Use Command::status to run interactively instead of output
             let status = Command::new("kubectl")
                 .args(["exec", "-it", pod_name, "--", "sh", "/cmd.sh"])
                 .status()
                 .expect("Failed to execute command");
-                
             if !status.success() {
                 eprintln!("Error: kubectl command failed with status: {}", status);
             }

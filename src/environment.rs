@@ -3,6 +3,7 @@ use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::io::{self, Read, Write};
+use std::path::PathBuf;
 
 pub struct UserInfo {
     pub user: String,
@@ -14,58 +15,105 @@ impl UserInfo {
         UserInfo { user, password }
     }
 
-    pub fn load() -> Result<Self, Box<dyn Error>> {
+    // Get the path to the config file
+    fn get_config_path() -> Result<PathBuf, Box<dyn Error>> {
         let config_dir = env::current_dir()?.join("config");
         if !config_dir.exists() {
             std::fs::create_dir_all(&config_dir)?;
         }
-        let user_config_path = config_dir.join("user.config");
+        Ok(config_dir.join("user.config"))
+    }
 
-        if user_config_path.exists() {
-            let mut file = File::open(&user_config_path)?;
+    // Read user input with provided prompt
+    fn read_input(prompt: &str) -> Result<String, Box<dyn Error>> {
+        println!("{}", prompt);
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        Ok(input.trim().to_string())
+    }
+
+    // Read user credentials from file or prompt user
+    fn get_credentials(show_current: bool) -> Result<(String, String), Box<dyn Error>> {
+        let config_path = Self::get_config_path()?;
+
+        if config_path.exists() {
+            let mut file = File::open(&config_path)?;
             let mut contents = String::new();
             file.read_to_string(&mut contents)?;
 
             let lines: Vec<&str> = contents.lines().collect();
-            if lines.len() >= 2 {
-                let user = lines[0].to_string();
-                let password = lines[1].to_string();
-                Ok(UserInfo::new(user, password))
-            } else {
-                Err("Config file format err".into())
+            if lines.len() < 2 {
+                return Err(
+                    "Config file format is invalid (should contain username and password)".into(),
+                );
             }
-        } else {
-            println!("No user configuration found, Please enter credentials:");
-            print!("Username: ");
-            io::stdout().flush()?;
-            let mut user = String::new();
-            io::stdin().read_line(&mut user)?;
-            let user = user.trim().to_string();
-            print!("Password: ");
-            io::stdout().flush()?;
-            let mut password = String::new();
-            io::stdin().read_line(&mut password)?;
-            let password = password.trim().to_string();
 
+            let user = lines[0].to_string();
+            let password = lines[1].to_string();
+
+            if show_current {
+                println!("Current User: {}", user);
+                // Note: Printing password is generally not recommended
+                println!("Current Password: {}", password);
+            }
+
+            return Ok((user, password));
+        }
+
+        if !show_current {
+            println!("No user configuration found. Please enter credentials:");
+        }
+
+        let user = Self::read_input("Username: (Your Fullname)")?;
+        let password = Self::read_input("Password: (Default: Test1234)")?;
+
+        Ok((user, password))
+    }
+
+    pub fn update_user() -> Result<Self, Box<dyn Error>> {
+        // Show current values before updating
+        let _ = Self::get_credentials(true);
+
+        // Always prompt for new credentials when updating
+        let (user, password) = Self::read_input_credentials()?;
+        let user_info = UserInfo::new(user, password);
+        user_info.save()?;
+
+        Ok(user_info)
+    }
+
+    // Helper method to read username and password
+    fn read_input_credentials() -> Result<(String, String), Box<dyn Error>> {
+        let user = Self::read_input("Username: (Your Fullname)")?;
+        let password = Self::read_input("Password: (Default: Test1234)")?;
+        Ok((user, password))
+    }
+
+    pub fn load() -> Result<Self, Box<dyn Error>> {
+        let config_path = Self::get_config_path()?;
+
+        if config_path.exists() {
+            let (user, password) = Self::get_credentials(false)?;
+            return Ok(UserInfo::new(user, password));
+        } else {
+            println!("No user configuration found. Please enter credentials:");
+            let (user, password) = Self::read_input_credentials()?;
             let user_info = UserInfo::new(user, password);
             user_info.save()?;
-            Ok(user_info)
+            return Ok(user_info);
         }
     }
 
     fn save(&self) -> Result<(), Box<dyn Error>> {
-        let config_dir = env::current_dir()?.join("config");
-        if !config_dir.exists() {
-            std::fs::create_dir_all(&config_dir)?;
-        }
-        let config_file = config_dir.join("user.config");
-        let mut file = File::create(&config_file)?;
+        let config_path = Self::get_config_path()?;
+        let mut file = File::create(&config_path)?;
         writeln!(file, "{}", self.user)?;
         writeln!(file, "{}", self.password)?;
+        println!("User credentials saved successfully.");
         Ok(())
     }
 }
-
 // Add Path to Environment Variable
 pub fn add_path(path: &str) -> Result<(), Box<dyn Error>> {
     let path_str = path.to_string();
@@ -186,6 +234,7 @@ pub fn check_env() {
     match UserInfo::load() {
         Ok(user_info) => {
             println!("User: {}", user_info.user);
+            println!("Password: {}", user_info.password);
         }
         Err(e) => {
             println! {"Error loading user info: {}", e};

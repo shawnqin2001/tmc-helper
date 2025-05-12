@@ -39,6 +39,9 @@ fn main() {
                     pod_list.display();
                     pod_list.uninstall_pod();
                 }
+                6 => {
+                    environment::UserInfo::update_user().unwrap();
+                }
                 _ => println!("Invalid action"),
             },
             Err(e) => println!("Error: {}", e),
