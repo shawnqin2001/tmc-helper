@@ -1,10 +1,10 @@
 [package]
 name = "thumed_login"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-clap = "4.5.32"
+clap = { version = "4.5.32", features = ["derive"] }
 
 [target.x86_64-pc-windows-gnu]
 linker = "zig"

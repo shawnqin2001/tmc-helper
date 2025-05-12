@@ -1,4 +1,4 @@
-use crate::utils;
+use crate::{constants, platform, utils};
 use std::env;
 use std::error::Error;
 use std::fs::File;
@@ -124,7 +124,7 @@ pub fn add_path(path: &str) -> Result<(), Box<dyn Error>> {
     if !path_vec.contains(&path_str) {
         path_vec.insert(0, path_str);
         let new_path = env::join_paths(path_vec)?;
-        if cfg!(target_os = "windows") {
+        if platform::is_windows() {
             utils::run_cmd(
                 "setx",
                 &["path", new_path.to_string_lossy().to_string().as_str()],
@@ -147,12 +147,8 @@ pub fn ensure_tools_available() -> Result<(), Box<dyn Error>> {
 
     add_path(bin_dir.to_string_lossy().as_ref())?;
 
-    let kubectl_path = bin_dir.join(if cfg!(windows) {
-        "kubectl.exe"
-    } else {
-        "kubectl"
-    });
-    let helm_path = bin_dir.join(if cfg!(windows) { "helm.exe" } else { "helm" });
+    let kubectl_path = platform::get_bin_path(&bin_dir, "kubectl");
+    let helm_path = platform::get_bin_path(&bin_dir, "helm");
 
     let kubectl_exists = kubectl_path.exists();
     let helm_exists = helm_path.exists();
@@ -216,14 +212,14 @@ fn init_helm() -> Result<(), Box<dyn Error>> {
     // Check if med-helm repo already exists
     let helm_list = utils::run_cmd("helm", &["repo", "list"])?;
 
-    if !helm_list.contains("med-helm") {
+    if !helm_list.contains(constants::HELM_REPO_NAME) {
         let _helm_init = utils::run_cmd(
             "helm",
-            &["repo", "add", "med-helm", "http://166.111.153.65:7001"],
+            &["repo", "add", constants::HELM_REPO_NAME, constants::HELM_REPO_URL],
         )?;
-        println!("Added med-helm repository");
+        println!("Added {} repository", constants::HELM_REPO_NAME);
     } else {
-        println!("med-helm repository already exists");
+        println!("{} repository already exists", constants::HELM_REPO_NAME);
     }
     let helm_update = utils::run_cmd("helm", &["repo", "update"])?;
     println!("{}", helm_update);

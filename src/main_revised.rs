@@ -1,14 +1,8 @@
-mod cli;
-mod constants;
-mod environment;
-mod host_handler;
-mod interaction;
-mod platform;
-mod pod_handler;
-mod utils;
+use crate::{cli, constants, environment, interaction, platform, pod_handler};
 use clap::Parser;
 use std::env;
 use std::process;
+
 fn main() {
     // First set working directory to executable path
     if let Ok(exe_path) = env::current_exe() {
